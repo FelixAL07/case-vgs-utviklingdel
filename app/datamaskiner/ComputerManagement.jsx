@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../../firebase';
-import { collection, addDoc, deleteDoc, doc, getDocs } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, getDocs, updateDoc } from 'firebase/firestore';
 
 export default function Home() {
     const [computers, setComputers] = useState([]);
@@ -10,6 +10,10 @@ export default function Home() {
     const [location, setLocation] = useState('Bygning A1: Bibliotek');
     const [year, setYear] = useState('');
     const [threshold, setThreshold] = useState('');
+    const [state, setState] = useState('I bruk');
+    const [ownerRole, setOwnerRole] = useState('Lærer');
+    const [ownerName, setOwnerName] = useState('John Doe');
+    const [filterState, setFilterState] = useState('Alle');
 
     useEffect(() => {
         fetchComputers();
@@ -21,7 +25,7 @@ export default function Home() {
     }
 
     async function addComputer() {
-        await addDoc(collection(db, 'computers'), { type, location, year: parseInt(year) });
+        await addDoc(collection(db, 'computers'), { type, location, year: parseInt(year), state, ownerRole: 'Lærer', ownerName: 'John Doe' });
         fetchComputers();
         setYear(''); // Clear year input after adding
     }
@@ -31,22 +35,35 @@ export default function Home() {
         fetchComputers();
     }
 
+    async function updateComputer(id) {
+        await updateDoc(doc(db, 'computers', id), { state });
+        fetchComputers();
+    }
+
     function findOldComputers() {
         const currentYear = new Date().getFullYear();
-        return computers.filter(computer => currentYear - computer.year >= parseInt(threshold));
+        const filtered = computers.filter(computer => currentYear - computer.year >= parseInt(threshold));
+
+        // If "Alle" is selected, return all computers that match the age criteria
+        if (filterState === 'Alle') {
+            return filtered;
+        }
+
+        // Otherwise, filter by both age and state
+        return filtered.filter(computer => computer.state === filterState);
     }
 
     return (
         <div className="p-6 max-w-6xl mx-auto">
             <h1 className="text-2xl font-bold mb-6 text-center">Skolens Datamaskiner</h1>
-            
+
             {/* Add Computer Form */}
             <div className="bg-white shadow-md rounded-lg p-6 mb-8">
                 <h2 className="text-xl font-semibold mb-4">Legg til ny datamaskin</h2>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                        <select 
+                        <select
                             className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                             onChange={e => setType(e.target.value)}
                             value={type}
@@ -55,14 +72,15 @@ export default function Home() {
                             <option value="stasjonær">Stasjonær</option>
                         </select>
                     </div>
-                    
+
                     <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Plassering</label>
-                        <select 
+                        <select
                             className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                            onChange={e => setLocation(e.target.value)} 
+                            onChange={e => setLocation(e.target.value)}
                             value={location}
                         >
+                            <option value="Ekstern/Hjemmekontor">Ekstern/Hjemmekontor</option>
                             <option value="Bygning A1: Bibliotek">Bygning A1: Bibliotek</option>
                             <option value="Bygning A1: Ekspedisjon">Bygning A1: Ekspedisjon</option>
                             <option value="Bygning A1: Ledelse">Bygning A1: Ledelse</option>
@@ -81,89 +99,133 @@ export default function Home() {
                             <option value="Bygning C: Datarom 4">Bygning C: Datarom 4</option>
                         </select>
                     </div>
-                    
-                    <div className="flex items-end space-x-2">
-                        <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Produksjonsår</label>
-                            <input 
-                                type="number" 
-                                placeholder="År" 
-                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                                onChange={e => setYear(e.target.value)}
-                                value={year} 
-                            />
-                        </div>
-                        <button 
-                            onClick={addComputer}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
-                        >
-                            Legg til
-                        </button>
-                    </div>
-                </div>
-            </div>
-            
-            {/* Computer List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white shadow-md rounded-lg p-6">
-                    <h2 className="text-xl font-semibold mb-4">Eksisterende datamaskiner</h2>
-                    {computers.length > 0 ? (
-                        <ul className="divide-y divide-gray-200">
-                            {computers.map(computer => (
-                                <li key={computer.id} className="py-3 flex justify-between items-center">
-                                    <div>
-                                        <span className="font-medium">{computer.type}</span>
-                                        <span className="text-gray-500"> • {computer.location}</span>
-                                        <span className="text-gray-500"> • {computer.year}</span>
-                                    </div>
-                                    <button 
-                                        onClick={() => removeComputer(computer.id)}
-                                        className="text-red-600 hover:text-red-800 font-medium text-sm px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                                    >
-                                        Slett
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="text-gray-500 italic">Ingen datamaskiner registrert.</p>
-                    )}
-                </div>
-                
-                {/* Old Computers */}
-                <div className="bg-white shadow-md rounded-lg p-6">
-                    <h2 className="text-xl font-semibold mb-4">Gamle datamaskiner</h2>
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Søk på alder (år)</label>
-                        <input 
-                            type="number" 
-                            placeholder="Alder" 
+                    <div className="md:col-span-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Lærer/Student</label>
+                        <select
                             className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                            onChange={e => setThreshold(e.target.value)}
-                            value={threshold}
+                            onChange={e => setOwnerRole(e.target.value)}
+                            value={ownerRole}
+                        >
+                            <option value="lærer">Lærer</option>
+                            <option value="student">Student</option>
+                        </select>
+                    </div>
+                    <div className="md:col-span-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Navn på eier</label>
+                        <input
+                            type="text"
+                            className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                            onChange={e => setOwnerName(e.target.value)}
+                            value={ownerName}
                         />
                     </div>
-                    
-                    {threshold && (
+
                         <div>
-                            <h3 className="font-medium mb-2">Datamaskiner eldre enn {threshold} år:</h3>
-                            {findOldComputers().length > 0 ? (
-                                <ul className="divide-y divide-gray-200">
-                                    {findOldComputers().map(computer => (
-                                        <li key={computer.id} className="py-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Produksjonsår</label>
+                            <input
+                                type="number"
+                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                onChange={e => setYear(e.target.value)}
+                                value={year}
+                            />
+                        </div>
+
+                        <div className="flex items-end space-x-2">
+                            <button
+                                onClick={addComputer}
+                                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                            >
+                                Legg til
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Existing Computers */}
+                    <div className="bg-white shadow-md rounded-lg p-6 mb-8 min-h-full">
+                        <h2 className="text-xl font-semibold mb-4">Eksisterende datamaskiner</h2>
+                        {computers.length > 0 ? (
+                            <ul className="divide-y divide-gray-200">
+                                {computers.map(computer => (
+                                    <li key={computer.id} className="py-3 flex justify-between items-center">
+                                        <div>
                                             <span className="font-medium">{computer.type}</span>
                                             <span className="text-gray-500"> • {computer.location}</span>
                                             <span className="text-gray-500"> • {computer.year}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <p className="text-gray-500 italic">Ingen datamaskiner funnet.</p>
-                            )}
-                        </div>
-                    )}
+                                        </div>
+                                        <select name="status"
+                                            className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                            onChange={e => {
+                                                setState(e.target.value);
+                                                updateComputer(computer.id);
+                                            }}
+                                            value={computer.state}
+                                        >
+                                            <option value="I bruk">I bruk</option>
+                                            <option value="Kassert">Kassert</option>
+                                        </select>
+                                        <button
+                                            onClick={() => removeComputer(computer.id)}
+                                            className="text-red-600 hover:text-red-900 hover:bg-red-500 font-medium py-2 px-4 rounded-md transition-colors"
+                                        >
+                                            Slett
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="text-gray-500 italic">Ingen datamaskiner registrert.</p>
+                        )}
+                    </div>
+
+                    {/* Old Computers */}
+                    <div className="bg-white shadow-md rounded-lg p-6 min-h-full">
+    <h2 className="text-xl font-semibold mb-4">Gamle datamaskiner</h2>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Søk på alder (år)</label>
+            <input
+                type="number"
+                placeholder="Alder"
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                onChange={e => setThreshold(e.target.value)}
+                value={threshold}
+            />
+        </div>
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Filtrer på status</label>
+            <select
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                onChange={e => setFilterState(e.target.value)}
+                value={filterState}
+            >
+                <option value="Alle">Alle</option>
+                <option value="I bruk">I bruk</option>
+                <option value="Kassert">Kassert</option>
+            </select>
+        </div>
+    </div>
+
+                        {threshold && (
+                            <div>
+                                <h3 className="font-medium mb-2">Datamaskiner eldre enn {threshold} år:</h3>
+                                {findOldComputers().length > 0 ? (
+                                    <ul className="divide-y divide-gray-200">
+                                        {findOldComputers().map(computer => (
+                                            <li key={computer.id} className="py-2">
+                                                <span className="font-medium">{computer.type}</span>
+                                                <span className="text-gray-500"> • {computer.location}</span>
+                                                <span className="text-gray-500"> • {computer.year}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-gray-500 italic">Ingen datamaskiner funnet.</p>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
-        </div>
-    );
+            );
 }
