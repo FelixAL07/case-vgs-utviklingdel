@@ -25,9 +25,9 @@ export default function Home() {
     }
 
     async function addComputer() {
-        await addDoc(collection(db, 'computers'), { type, location, year: parseInt(year), state, ownerRole: 'Lærer', ownerName: 'John Doe' });
+        await addDoc(collection(db, 'computers'), { type, location, year: parseInt(year), state, ownerRole, ownerName});
         fetchComputers();
-        setYear(''); // Clear year input after adding
+        setYear('');
     }
 
     async function removeComputer(id) {
@@ -152,6 +152,8 @@ export default function Home() {
                                             <span className="font-medium">{computer.type}</span>
                                             <span className="text-gray-500"> • {computer.location}</span>
                                             <span className="text-gray-500"> • {computer.year}</span>
+                                            <br />
+                                            <span className="text-gray-500">{computer.ownerName}: {computer.ownerRole}</span>
                                         </div>
                                         <select name="status"
                                             className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
